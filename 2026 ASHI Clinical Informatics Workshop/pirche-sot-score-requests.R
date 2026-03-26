@@ -24,7 +24,8 @@ library(immunogenetr)
 ##### CONFIGURATION #####
 input_file <- "test_data.csv" # HLA typings grouped by case
 demo_case_id <- "2"
-client_id <- "api-client" 
+client_id <- "api-client"
+pipeline <- "Frost-1.1_IMGT-3.54"
 api_key <- "___API-KEY___" # Please reach out to support@pirche.com - We're happy to help with your integration!
 
 # GET Access Token
@@ -68,7 +69,8 @@ build_hla_block <- function(row_data) {
       row_data[hla_cols] != ""
   ]
   
-  # Ensure that immunogenetr identifies low res molecular (colon)
+  # Ensure that immunogenetr identifies low res molecular 
+  ## (seems to look for a colon; if not found string is converted to serology)
   row_mod <- row_data
   for(col in active_cols) {
     val <- row_mod[[col]]
@@ -103,7 +105,7 @@ for(i in 1:nrow(donor_rows)) {
 
 # Final Payload (complete data / JSON object)
 payload <- list(
-  databaseVersion = "Frost-1.1_IMGT-3.54",
+  databaseVersion = pipeline,
   patient = patient_data,
   donors  = donor_data_list,
   hlaValueFormatVersion = "v2"
@@ -139,7 +141,7 @@ json_snow <- call_pirche_api(endpoint_snow, payload)
 
 ##### Format and Print Results #####
 summary_rows  <- list() 
-sot_details   <- list()
+pirche_details   <- list()
 snow_details  <- list()
 
 # Function formats numbers to 2 decimals, keeping NA/NULL distinct
@@ -154,24 +156,24 @@ donor_ids <- names(json_sot$pircheII)
 
 for(id in donor_ids) {
   
-  sot_dat  <- json_sot$pircheII[[id]]
+  pirche_dat  <- json_sot$pircheII[[id]]
   snow_dat <- json_snow$snow[[id]]
   
   # Summary Table - Total Scores
   summary_rows[[length(summary_rows)+1]] <- tibble(
     Case      = demo_case_id,
     Donor_ID  = id,
-    SOT_Sum   = fmt(sot_dat$sum),
+    PIRCHE_Sum   = fmt(pirche_dat$sum),
     SNOW_Sum  = fmt(snow_dat$sum)
   )
   
   # Detailed Table - PIRCHE-T2
-  row_sot <- as_tibble(sot_dat) %>%
+  row_sot <- as_tibble(pirche_dat) %>%
     mutate(across(everything(), fmt)) %>%
     mutate(Donor_ID = id, .before = 1) %>%
     rename(Total = sum)
   
-  sot_details[[length(sot_details)+1]] <- row_sot
+  pirche_details[[length(pirche_details)+1]] <- row_sot
   
   # Detailed Table - PIRCHE-B
   row_snow <- as_tibble(snow_dat) %>%
@@ -187,7 +189,7 @@ for(id in donor_ids) {
 cat("\n--- Summary - Total Scores ---\n")
 print(bind_rows(summary_rows))
   
-df_sot <- bind_rows(sot_details)
+df_sot <- bind_rows(pirche_details)
 locus_cols <- sort(setdiff(names(df_sot), c("Donor_ID", "Total"))) 
 df_sot <- df_sot %>% select(Donor_ID, Total, all_of(locus_cols)) 
   
